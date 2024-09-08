@@ -49,7 +49,7 @@ comfyui_path_drive = ""
 comfyui_github_url = "https://github.com/comfyanonymous/ComfyUI"
 config_file = "comfyui_config.json"
 ducnote_script_url = (
-    "https://github.com/your-username/your-repo/raw/main/ducnote.py"  # Thay thế bằng URL script DUCNOTE của bạn
+    "https://github.com/BigKoka/BigKoka/blob/main/ComfyUI-Setup.py"  # Thay thế bằng URL script DUCNOTE của bạn
 )
 
 download_categories = {
