@@ -68,7 +68,6 @@ dependencies = {
 basic_models_nodes = {
     "models/checkpoints": [],
     "models/controlnet": [],
-    "custom_nodes": [],
     "custom_nodes": [
     # ...  các  extension  khác  (nếu  có),
     "https://github.com/XLabs-AI/x-flux-comfyui"
