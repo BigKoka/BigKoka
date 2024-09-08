@@ -294,8 +294,7 @@ def download_file(link, save_path, pbar=None):
 
     except Exception as e:
         logging.error(f"Lỗi khi tải {link}: {e}")
-        return f"Lỗi khi tải {link}: {e}
-
+        return f"Lỗi khi tải {link}: {e}"
 
 def install_library_if_needed(library):
     """Cài đặt thư viện nếu chưa có."""
