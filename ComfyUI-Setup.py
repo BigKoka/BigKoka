@@ -11,7 +11,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
 from ipywidgets import (Dropdown, Text, Button, VBox, HBox, Checkbox,
-    IntSlider, Output, Label, HTML, GridspecLayout, Tab)
+    IntSlider, Output, Label, HTML, GridspecLayout, Tab, Layout)
 from IPython.display import display, clear_output
 import logging
 from tqdm.notebook import tqdm
@@ -106,26 +106,25 @@ tab_widget.set_title(1, "Cài đặt Extension")
 tab_widget.set_title(2, "Quản lý Model")
 
 # --- Cài đặt chung ---
+comfyui_version_label = Label(value="Phiên  bản  ComfyUI: Latest (Phiên bản mới nhất) và Custom Version (Tuỳ chọn phiên bản)")
 comfyui_version_input = Dropdown(
     options=["Latest", "Custom Version"],
-    description="Phiên bản ComfyUI:",
     value="Latest",
 )
 
 custom_version_text = Text(
-    value="", placeholder="Nhập branch hoặc tag", description="Branch/Tag:"
+    value="", placeholder="Ví dụ: dev, feature/new-feature, v1.0.0, v1.1.2...",
 )
 
+folder_choice_label = Label(value="Lựa chọn thư mục lưu ComfyUI:")
 folder_choice_input = Dropdown(
     options=["Tạo mới", "Sử dụng thư mục có sẵn"],
-    description="Lựa chọn thư mục:",
     value="Tạo mới",
 )
 
 folder_name_input = Text(
     value="",
-    placeholder="Nhập tên thư mục",
-    description="Tên thư mục:",
+    placeholder="Nhập tên thư mục có sẵn",
 )
 
 save_config_checkbox = Checkbox(
@@ -147,10 +146,10 @@ download_speed_slider = IntSlider(
 )
 
 # --- Cài đặt Extension ---
+extension_url_label = Label(value="Link Extension bạn muốn cài đặt:")
 extension_url_input = Text(
     value="",
-    placeholder="Dán URL repository extension",
-    description="URL Extension:",
+    placeholder="Dán Link extension",
 )
 
 install_extension_button = Button(
@@ -158,16 +157,16 @@ install_extension_button = Button(
 )
 
 # --- Quản lý Model ---
+category_dropdown_label = Label(value="Chọn loại model/node:")
 category_dropdown = Dropdown(
     options=list(download_categories.keys()),
-    description="Loại model/node:",
     value="models/checkpoints",
 )
 
+download_link_label = Label(value="Link tải xuống model/custom node:")
 download_link_input = Text(
     value="",
     placeholder="Dán link tải model/custom node...",
-    description="Link tải xuống:",
 )
 
 add_link_button = Button(description="Thêm link", button_style="info")
@@ -183,8 +182,10 @@ error_output_area = Output()
 # --- Sắp xếp giao diện ---
 with output_general:
     display(
+        comfyui_version_label,
         comfyui_version_input,
         custom_version_text,
+        folder_choice_label,
         folder_choice_input,
         folder_name_input,
         save_config_checkbox,
@@ -196,11 +197,11 @@ with output_general:
     )
 
 with output_extensions:
-    display(extension_url_input, install_extension_button)
+    display(extension_url_label,extension_url_input, install_extension_button)
 
 with output_models:
     display(
-        category_dropdown, download_link_input, add_link_button, model_table_vbox
+        category_dropdown_label,category_dropdown, download_link_label, download_link_input, add_link_button, model_table_vbox
     )
 
 display(tab_widget)
