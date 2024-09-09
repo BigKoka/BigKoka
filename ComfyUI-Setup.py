@@ -57,7 +57,7 @@ if not os.path.exists('/content/drive'):
 else:
   print("Google Drive đã được kết nối.")
 
-google_drive_root_path = "/content/drive/My Drive" 
+google_drive_root_path = "/content/drive/My Drive"
 import datetime
 
 # Lưu trữ các model/node cần tải theo loại
@@ -274,7 +274,7 @@ def clone_comfyui_repo(output_area, error_output_area):
         if not os.path.exists(comfyui_path_drive):
             os.makedirs(comfyui_path_drive, exist_ok=True)
 
-        if os.listdir(comfyui_path_drive):
+        if os.path.exists(os.path.join(comfyui_path_drive, '.git')):
             update_output(
                 "ComfyUI đã được cài đặt. Đang kiểm tra và cập nhật phiên bản mới nhất...",
                 output_area,
@@ -289,8 +289,6 @@ def clone_comfyui_repo(output_area, error_output_area):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            logging.info(process.stdout)
-            logging.error(process.stderr)
         else:
             logging.info(f"Clone ComfyUI vào thư mục {comfyui_path_drive}")
             process = subprocess.run(
@@ -299,9 +297,12 @@ def clone_comfyui_repo(output_area, error_output_area):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            logging.info(process.stdout)
-            logging.error(process.stderr)
-        
+
+        if process.returncode != 0:
+            raise Exception(f"Git operation failed: {process.stderr}")
+
+        logging.info(process.stdout)
+
         # Cài đặt dependencies
         update_output("Đang cài đặt các thư viện phụ thuộc...", output_area)
         requirements_file = os.path.join(comfyui_path_drive, "requirements.txt")
@@ -312,7 +313,7 @@ def clone_comfyui_repo(output_area, error_output_area):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-        
+
         # Cài đặt thêm torchsde
         subprocess.run(
             ["pip", "install", "torchsde"],
@@ -320,7 +321,7 @@ def clone_comfyui_repo(output_area, error_output_area):
             stderr=subprocess.PIPE,
             text=True,
         )
-        
+
         update_output("Cài đặt ComfyUI và các thư viện phụ thuộc thành công.", output_area)
     except Exception as e:
         logging.error(f"Lỗi khi cài đặt ComfyUI: {e}")
@@ -344,7 +345,7 @@ def install_additional_dependencies(output_area, error_output_area):
         update_output("Cài đặt các thư viện bổ sung thành công.", output_area)
     except Exception as e:
         logging.error(f"Lỗi khi cài đặt các thư viện bổ sung: {e}")
-        display_error(f"Lỗi khi cài đặt các thư viện bổ sung: {e}", error_output_area)       
+        display_error(f"Lỗi khi cài đặt các thư viện bổ sung: {e}", error_output_area)
 
 def install_extension(ext_url, output_area, error_output_area):
     """Cài đặt extension từ URL, kiểm tra đã tồn tại chưa."""
@@ -513,7 +514,7 @@ def update_model_table():
     if table_rows:
         model_table_vbox.children = tuple([HTML("<b>Danh sách model/node/extension đã thêm:</b>")] + table_rows)
     else:
-        model_table_vbox.children = (HTML("<b>Danh sách model/node/extension đã thêm:</b><br>Chưa có mục nào được thêm."),)        
+        model_table_vbox.children = (HTML("<b>Danh sách model/node/extension đã thêm:</b><br>Chưa có mục nào được thêm."),)
 
 def remove_model_link(category, link):
     global basic_models_nodes
@@ -527,15 +528,15 @@ def remove_model_link(category, link):
 def on_add_link_button_clicked(b):
     category = category_dropdown.value
     link = download_link_input.value.strip()
-    
+
     if not link:
         display_error("Vui lòng nhập link tải xuống.", error_output_area)
         return
-    
+
     if not validate_link(link):
         display_error("Link không hợp lệ. Vui lòng kiểm tra lại.", error_output_area)
         return
-    
+
     if link not in basic_models_nodes[category]:
         basic_models_nodes[category].append(link)
         update_output(f"Đã thêm link: {link} vào danh sách {download_categories[category]}.", output_area)
@@ -548,16 +549,16 @@ def on_add_link_button_clicked(b):
 
 def on_start_button_clicked(b):
     try:
-        global google_drive_root_path 
+        global google_drive_root_path
         if save_config_checkbox.value:
             save_config(output_area, error_output_area)
 
-        on_check_space_button_clicked(None)  
+        on_check_space_button_clicked(None)
 
         if not create_or_use_folder(
             output_area, error_output_area, folder_name_input, general_settings_box
         ):
-            return  
+            return
 
         install_dependencies(output_area, error_output_area)
         install_additional_dependencies(output_area, error_output_area)  # Thêm dòng này
@@ -573,7 +574,7 @@ def on_start_button_clicked(b):
 
     except Exception as e:
         logging.error(f"Lỗi trong quá trình cài đặt: {e}")
-        display_error(f"Đã xảy ra lỗi trong quá trình cài đặt: {e}", error_output_area)      
+        display_error(f"Đã xảy ra lỗi trong quá trình cài đặt: {e}", error_output_area)
 
 # ----------------------------------------------------
 # GIAO DIỆN VỚI WIDGETS
