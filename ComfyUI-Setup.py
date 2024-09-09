@@ -458,17 +458,6 @@ def remove_model_link(category, link):
     else:
         update_output(f"Không tìm thấy liên kết: {link} trong danh sách {download_categories[category]}.", output_area)
 
-# Lưu trữ các model/node cần tải theo loại
-basic_models_nodes = {
-    "models/checkpoints": [],
-    "models/vae": [],
-    "models/embeddings": [],
-    "models/hypernetworks": [],
-    "models/lora": [],
-    "models/controlnet": [],
-    "custom_nodes": [],
-}
-
 def on_add_link_button_clicked(b):
     category = category_dropdown.value
     link = download_link_input.value.strip()
