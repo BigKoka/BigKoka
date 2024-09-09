@@ -1,3 +1,4 @@
+# @title
 # ----------------------------------------------------
 # KẾT NỐI GOOGLE DRIVE VÀ CẤU HÌNH BAN ĐẦU
 # ----------------------------------------------------
@@ -41,6 +42,20 @@ logging.basicConfig(
 
 # Phiên bản hiện tại của DUCNOTE
 DUCNOTE_VERSION = "1.5"  # Cập nhật phiên bản
+
+# ----------------------------------------------------
+# KẾT NỐI GOOGLE DRIVE VÀ CẤU HÌNH BAN ĐẦU
+# ----------------------------------------------------
+from google.colab import drive
+import os
+
+# Kiểm tra xem drive đã được mount chưa
+if not os.path.exists('/content/drive'):
+  drive.mount('/content/drive')
+else:
+  print("Google Drive đã được kết nối.")
+
+import datetime
 
 # ----------------------------------------------------
 # HÀM HỖ TRỢ
