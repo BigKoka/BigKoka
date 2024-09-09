@@ -43,7 +43,8 @@ logging.basicConfig(
 
 # Phiên bản hiện tại của DUCNOTE
 DUCNOTE_VERSION = "1.5"  # Cập nhật phiên bản
-
+config_file = "comfyui_config.json"
+comfyui_github_url = "https://github.com/comfyanonymous/ComfyUI"
 # ----------------------------------------------------
 # KẾT NỐI GOOGLE DRIVE VÀ CẤU HÌNH BAN ĐẦU
 # ----------------------------------------------------
@@ -56,6 +57,7 @@ if not os.path.exists('/content/drive'):
 else:
   print("Google Drive đã được kết nối.")
 
+google_drive_root_path = "/content/drive/My Drive" 
 import datetime
 
 # Lưu trữ các model/node cần tải theo loại
@@ -70,6 +72,16 @@ basic_models_nodes = {
         "https://github.com/XLabs-AI/x-flux-comfyui",
         "https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes",
     ],
+}
+
+download_categories = {
+    "models/checkpoints": "Checkpoints",
+    "models/vae": "VAEs",
+    "models/embeddings": "Embeddings",
+    "models/hypernetworks": "Hypernetworks",
+    "models/lora": "Loras",
+    "models/controlnet": "ControlNets",
+    "custom_nodes": "Custom Nodes",
 }
 
 # ----------------------------------------------------
@@ -492,6 +504,38 @@ def on_add_link_button_clicked(b):
         update_model_table()  # Update the table after adding a new link
     else:
         update_output(f"Link: {link} đã tồn tại trong danh sách {download_categories[category]}.", output_area)
+
+# ... các hàm khác ...
+
+def on_start_button_clicked(b):
+    """Xử lý sự kiện khi nút "Bắt đầu cài đặt" được nhấn."""
+    try:
+        global google_drive_root_path 
+        if save_config_checkbox.value:
+            save_config(output_area, error_output_area)
+
+        # --- Các bước cài đặt ---
+        on_check_space_button_clicked(None)  
+
+        if not create_or_use_folder(
+            output_area, error_output_area, folder_name_input, general_settings_box
+        ):
+            return  
+
+        install_dependencies(output_area, error_output_area)
+        clone_comfyui_repo(output_area, error_output_area)
+
+        for link in basic_models_nodes.get("custom_nodes", []):
+            install_extension(link, output_area, error_output_area)
+
+        download_files_concurrently(
+            basic_models_nodes, download_speed_slider.value, output_area, error_output_area
+        )
+        start_comfyui(output_area, error_output_area)
+
+    except Exception as e:
+        logging.error(f"Lỗi trong quá trình cài đặt: {e}")
+        display_error(f"Đã xảy ra lỗi trong quá trình cài đặt: {e}", error_output_area)      
 
 # ----------------------------------------------------
 # GIAO DIỆN VỚI WIDGETS
