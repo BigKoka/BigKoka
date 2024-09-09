@@ -68,6 +68,7 @@ basic_models_nodes = {
     "models/controlnet": [],
     "custom_nodes": [
         "https://github.com/XLabs-AI/x-flux-comfyui",
+        "https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes",
     ],
 }
 
