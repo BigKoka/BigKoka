@@ -269,7 +269,6 @@ def create_or_use_folder(output_area, error_output_area, folder_name_input, gene
     return True
 
 def clone_comfyui_repo(output_area, error_output_area):
-    """Clone hoặc pull ComfyUI từ GitHub."""
     try:
         update_output(f"Đang cài đặt ComfyUI vào thư mục {comfyui_path_drive}...", output_area)
         if not os.path.exists(comfyui_path_drive):
@@ -302,10 +301,50 @@ def clone_comfyui_repo(output_area, error_output_area):
             )
             logging.info(process.stdout)
             logging.error(process.stderr)
-        update_output("Cài đặt ComfyUI thành công.", output_area)
+        
+        # Cài đặt dependencies
+        update_output("Đang cài đặt các thư viện phụ thuộc...", output_area)
+        requirements_file = os.path.join(comfyui_path_drive, "requirements.txt")
+        if os.path.exists(requirements_file):
+            subprocess.run(
+                ["pip", "install", "-r", requirements_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        
+        # Cài đặt thêm torchsde
+        subprocess.run(
+            ["pip", "install", "torchsde"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        
+        update_output("Cài đặt ComfyUI và các thư viện phụ thuộc thành công.", output_area)
     except Exception as e:
         logging.error(f"Lỗi khi cài đặt ComfyUI: {e}")
         display_error(f"Lỗi khi cài đặt ComfyUI: {e}", error_output_area)
+
+def install_additional_dependencies(output_area, error_output_area):
+    try:
+        update_output("Đang cài đặt các thư viện bổ sung...", output_area)
+        additional_dependencies = [
+            "torch", "torchvision", "torchaudio", "torchsde",
+            "opencv-python", "pillow", "einops", "transformers", "safetensors",
+            "aiohttp", "accelerate", "pyyaml", "scipy"
+        ]
+        for dep in additional_dependencies:
+            subprocess.run(
+                ["pip", "install", dep],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        update_output("Cài đặt các thư viện bổ sung thành công.", output_area)
+    except Exception as e:
+        logging.error(f"Lỗi khi cài đặt các thư viện bổ sung: {e}")
+        display_error(f"Lỗi khi cài đặt các thư viện bổ sung: {e}", error_output_area)       
 
 def install_extension(ext_url, output_area, error_output_area):
     """Cài đặt extension từ URL, kiểm tra đã tồn tại chưa."""
@@ -508,13 +547,11 @@ def on_add_link_button_clicked(b):
 # ... các hàm khác ...
 
 def on_start_button_clicked(b):
-    """Xử lý sự kiện khi nút "Bắt đầu cài đặt" được nhấn."""
     try:
         global google_drive_root_path 
         if save_config_checkbox.value:
             save_config(output_area, error_output_area)
 
-        # --- Các bước cài đặt ---
         on_check_space_button_clicked(None)  
 
         if not create_or_use_folder(
@@ -523,6 +560,7 @@ def on_start_button_clicked(b):
             return  
 
         install_dependencies(output_area, error_output_area)
+        install_additional_dependencies(output_area, error_output_area)  # Thêm dòng này
         clone_comfyui_repo(output_area, error_output_area)
 
         for link in basic_models_nodes.get("custom_nodes", []):
