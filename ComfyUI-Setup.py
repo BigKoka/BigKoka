@@ -2,6 +2,7 @@
 # ----------------------------------------------------
 # KẾT NỐI GOOGLE DRIVE VÀ CẤU HÌNH BAN ĐẦU
 # ----------------------------------------------------
+
 from google.colab import drive
 import os
 import datetime
@@ -59,25 +60,20 @@ import datetime
 
 # Lưu trữ các model/node cần tải theo loại
 basic_models_nodes = {
-    "models/checkpoints": [
-        "https://huggingface.co/stabilityai/stable-diffusion-2-1-base/resolve/main/v2-1_512-ema-pruned.ckpt",
-        "https://huggingface.co/NoCrypt/blessed_vae/resolve/main/blessed2.vae.pt",
-    ],
+    "models/checkpoints": [],
     "models/vae": [],
     "models/embeddings": [],
     "models/hypernetworks": [],
     "models/lora": [],
     "models/controlnet": [],
     "custom_nodes": [
-        "https://github.com/ltdrdata/ComfyUI-Manager",
-        "https://github.com/AUTOMATIC1111/stable-diffusion-webui-comfyui",
+        "https://github.com/XLabs-AI/x-flux-comfyui",
     ],
 }
 
 # ----------------------------------------------------
 # HÀM HỖ TRỢ
 # ----------------------------------------------------
-
 def update_output(message, output_area):
     """Cập nhật message vào output_area."""
     with output_area:
@@ -449,6 +445,24 @@ def on_check_space_button_clicked(b):
     else:
         display_error("Lỗi  khi  lấy  dung  lượng  trống  của  Google  Drive.", error_output_area)
 
+def update_model_table():
+    global basic_models_nodes, model_table_vbox
+
+    table_rows = []
+    for category, links in basic_models_nodes.items():
+        for link in links:
+            category_label = HTML(value=f"<b>{download_categories[category]}</b>")
+            link_label = HTML(value=link)
+            delete_button = Button(description="Xóa", button_style="danger", layout={'width': 'auto'})
+            delete_button.on_click(lambda b, c=category, l=link: remove_model_link(c, l))
+            row = HBox([category_label, link_label, delete_button])
+            table_rows.append(row)
+
+    if table_rows:
+        model_table_vbox.children = tuple([HTML("<b>Danh sách model/node/extension đã thêm:</b>")] + table_rows)
+    else:
+        model_table_vbox.children = (HTML("<b>Danh sách model/node/extension đã thêm:</b><br>Chưa có mục nào được thêm."),)        
+
 def remove_model_link(category, link):
     global basic_models_nodes
     if category in basic_models_nodes and link in basic_models_nodes[category]:
@@ -571,8 +585,6 @@ with output_general:
     display(general_settings_box)
     update_model_table()  # Gọi update_model_table() để khởi tạo bảng HTML
 
-output_general.layout.width = "80%"
-
 # Hiển thị tab Cài đặt Chung
 display(output_general)
 
@@ -592,21 +604,3 @@ start_button.on_click(on_start_button_clicked)
 # ----------------------------------------------------
 load_config(output_area, error_output_area)
 on_comfyui_version_change({"new": comfyui_version_input.value})
-
-def update_model_table():
-    global basic_models_nodes, model_table_vbox
-
-    table_rows = []
-    for category, links in basic_models_nodes.items():
-        for link in links:
-            category_label = HTML(value=f"<b>{download_categories[category]}</b>")
-            link_label = HTML(value=link)
-            delete_button = Button(description="Xóa", button_style="danger", layout={'width': 'auto'})
-            delete_button.on_click(lambda b, c=category, l=link: remove_model_link(c, l))
-            row = HBox([category_label, link_label, delete_button])
-            table_rows.append(row)
-
-    if table_rows:
-        model_table_vbox.children = tuple([HTML("<b>Danh sách model/node/extension đã thêm:</b>")] + table_rows)
-    else:
-        model_table_vbox.children = (HTML("<b>Danh sách model/node/extension đã thêm:</b><br>Chưa có mục nào được thêm."),)
