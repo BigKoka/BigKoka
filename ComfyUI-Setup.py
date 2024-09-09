@@ -57,6 +57,23 @@ else:
 
 import datetime
 
+# Lưu trữ các model/node cần tải theo loại
+basic_models_nodes = {
+    "models/checkpoints": [
+        "https://huggingface.co/stabilityai/stable-diffusion-2-1-base/resolve/main/v2-1_512-ema-pruned.ckpt",
+        "https://huggingface.co/NoCrypt/blessed_vae/resolve/main/blessed2.vae.pt",
+    ],
+    "models/vae": [],
+    "models/embeddings": [],
+    "models/hypernetworks": [],
+    "models/lora": [],
+    "models/controlnet": [],
+    "custom_nodes": [
+        "https://github.com/ltdrdata/ComfyUI-Manager",
+        "https://github.com/AUTOMATIC1111/stable-diffusion-webui-comfyui",
+    ],
+}
+
 # ----------------------------------------------------
 # HÀM HỖ TRỢ
 # ----------------------------------------------------
