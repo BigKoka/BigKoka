@@ -141,8 +141,9 @@ start_button = Button(
     button_style='success'
 )
 
+download_speed_label = Label(value="Chọn số kết nối tải xuống (Sử dụng tải đa luồng cho phép tải nhanh)")
 download_speed_slider = IntSlider(
-    value=5, min=1, max=10, step=1, description="Số kết nối tải xuống"
+    value=5, min=1, max=10, step=1,
 )
 
 # --- Cài đặt Extension ---
@@ -191,6 +192,7 @@ with output_general:
         save_config_checkbox,
         check_space_button,
         start_button,
+        download_speed_label,
         download_speed_slider,
         output_area,
         error_output_area,
