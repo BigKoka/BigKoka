@@ -1,3 +1,4 @@
+# @title
 # ----------------------------------------------------
 # KẾT NỐI GOOGLE DRIVE VÀ CẤU HÌNH BAN ĐẦU
 # ----------------------------------------------------
@@ -15,6 +16,7 @@ from IPython.display import display, clear_output
 import logging
 from tqdm.notebook import tqdm
 import shutil
+from ipywidgets import Layout
 
 # Cấu hình logging
 logging.basicConfig(filename='comfyui_setup.log', level=logging.INFO,
@@ -23,22 +25,37 @@ logging.basicConfig(filename='comfyui_setup.log', level=logging.INFO,
 # Phiên bản hiện tại của DUCNOTE
 DUCNOTE_VERSION = "1.3"  # Cập nhật phiên bản
 
+output_area = Output() 
+error_output_area = Output()
+
+def update_output(message, output_area): # Thêm tham số output_area
+    """Cập nhật message vào output_area."""
+    with output_area:
+        print(message)
+
+
+def display_error(message, error_output_area): # Thêm tham số error_output_area
+    """Hiển thị lỗi trên error_output_area."""
+    with error_output_area:
+        clear_output()
+        print(f"LỖI: {message}")
+
 # Mount Google Drive tự động
-def mount_google_drive():
+def mount_google_drive(output_area, error_output_area):
     """Kết nối Google Drive."""
     if not os.path.exists('/content/drive'):
         try:
             drive.mount('/content/drive')
             logging.info("Google Drive đã được kết nối.")
-            update_output("Google Drive đã được kết nối.")
+            update_output("Google Drive đã được kết nối.", output_area) # Truyền output_area
         except Exception as e:
             logging.error(f"Lỗi khi kết nối Google Drive: {e}")
-            display_error(f"Lỗi khi kết nối Google Drive: {e}")
+            display_error(f"Lỗi khi kết nối Google Drive: {e}", error_output_area) # Truyền error_output_area
     else:
         logging.info("Google Drive đã được kết nối.")
-        update_output("Google Drive đã được kết nối.")
+        update_output("Google Drive đã được kết nối.", output_area) # Truyền output_area
 
-mount_google_drive()
+mount_google_drive(output_area, error_output_area)
 
 # ----------------------------------------------------
 # CẤU HÌNH
@@ -115,6 +132,16 @@ save_config_checkbox = Checkbox(
     value=False, description="Lưu cấu hình cho lần sau?"
 )
 
+check_space_button = Button(
+    description="Kiểm tra dung lượng",
+    button_style='info'
+) 
+
+start_button = Button(
+    description='Bắt  đầu  cài  đặt',
+    button_style='success'
+)
+
 download_speed_slider = IntSlider(
     value=5, min=1, max=10, step=1, description="Số kết nối tải xuống"
 )
@@ -161,6 +188,8 @@ with output_general:
         folder_choice_input,
         folder_name_input,
         save_config_checkbox,
+        check_space_button,
+        start_button,
         download_speed_slider,
         output_area,
         error_output_area,
@@ -179,18 +208,6 @@ display(tab_widget)
 # ----------------------------------------------------
 # HÀM HỖ TRỢ
 # ----------------------------------------------------
-
-def update_output(message):
-    """Cập nhật message vào output_area."""
-    with output_area:
-        print(message)
-
-
-def display_error(message):
-    """Hiển thị lỗi trên error_output_area."""
-    with error_output_area:
-        clear_output()
-        print(f"LỖI: {message}")
 
 
 def check_comfyui_version():
@@ -512,7 +529,7 @@ def load_config():
             save_config_checkbox.value = config.get("save_config", False)
             download_speed_slider.value = config.get("download_speed", 5)
             logging.info("Cấu hình đã được tải.")
-            update_output("Đã tải cấu hình.")
+            update_output("Đã  tải  cấu  hình.", output_area)
 
             # Tải danh sách model/nodes
             global basic_models_nodes
@@ -520,10 +537,10 @@ def load_config():
             update_model_table()
         else:
             logging.info("Không tìm thấy cấu hình đã lưu.")
-            update_output("Không tìm thấy cấu hình đã lưu.")
+            update_output("Không  tìm  thấy  cấu  hình  đã  lưu.", output_area)
     except Exception as e:
         logging.error(f"Lỗi khi tải cấu hình: {e}")
-        display_error(f"Lỗi khi tải cấu hình: {e}")
+        display_error(f"Lỗi  khi  tải  cấu  hình:  {e}", error_output_area)
 
 
 def on_comfyui_version_change(change):
@@ -555,9 +572,9 @@ def on_check_space_button_clicked(b):
     """Hiển thị dung lượng trống của Google Drive."""
     free_space = get_free_space_gb(google_drive_root_path)
     if free_space >= 0:
-        update_output(f"Dung lượng trống trên Google Drive: {free_space:.2f} GB")
+        update_output(f"Dung lượng trống trên Google Drive: {free_space:.2f}  GB", output_area)
     else:
-        display_error("Lỗi khi lấy dung lượng trống của Google Drive.")
+        display_error("Lỗi  khi  lấy  dung  lượng  trống  của  Google  Drive.", error_output_area)
 
 
 def remove_model_link(category, link):
