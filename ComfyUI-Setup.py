@@ -32,6 +32,7 @@ import shutil
 from IPython.display import Javascript
 from google.colab import output
 from ipywidgets import Button, HBox, VBox, HTML
+import re
 
 
 # Cấu hình logging
@@ -249,7 +250,6 @@ def download_files_concurrently(download_links, max_workers, output_area, error_
                         futures.append(future)
 
 def create_or_use_folder(output_area, error_output_area, folder_name_input, general_settings_box):
-    """Tạo hoặc kiểm tra thư mục để cài đặt ComfyUI."""
     global comfyui_folder_name, comfyui_path_drive
     if folder_choice_input.value == "Tạo mới":
         comfyui_folder_name = "ComfyUI_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -271,28 +271,21 @@ def create_or_use_folder(output_area, error_output_area, folder_name_input, gene
 def clone_comfyui_repo(output_area, error_output_area):
     try:
         update_output(f"Đang cài đặt ComfyUI vào thư mục {comfyui_path_drive}...", output_area)
-        if not os.path.exists(comfyui_path_drive):
-            os.makedirs(comfyui_path_drive, exist_ok=True)
-
-        if os.path.exists(os.path.join(comfyui_path_drive, '.git')):
-            update_output(
-                "ComfyUI đã được cài đặt. Đang kiểm tra và cập nhật phiên bản mới nhất...",
-                output_area,
-            )
-            logging.info(
-                "ComfyUI đã được cài đặt. Kiểm tra và cập nhật phiên bản mới nhất."
-            )
+        
+        comfyui_folder = os.path.join(comfyui_path_drive, "ComfyUI")
+        if os.path.exists(comfyui_folder):
+            update_output("Thư mục ComfyUI đã tồn tại. Đang cập nhật...", output_area)
             process = subprocess.run(
                 ["git", "pull"],
-                cwd=comfyui_path_drive,
+                cwd=comfyui_folder,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
         else:
-            logging.info(f"Clone ComfyUI vào thư mục {comfyui_path_drive}")
+            os.makedirs(comfyui_folder, exist_ok=True)
             process = subprocess.run(
-                ["git", "clone", comfyui_github_url, comfyui_path_drive],
+                ["git", "clone", comfyui_github_url, comfyui_folder],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -305,7 +298,7 @@ def clone_comfyui_repo(output_area, error_output_area):
 
         # Cài đặt dependencies
         update_output("Đang cài đặt các thư viện phụ thuộc...", output_area)
-        requirements_file = os.path.join(comfyui_path_drive, "requirements.txt")
+        requirements_file = os.path.join(comfyui_folder, "requirements.txt")
         if os.path.exists(requirements_file):
             subprocess.run(
                 ["pip", "install", "-r", requirements_file],
@@ -381,9 +374,35 @@ def start_comfyui(output_area, error_output_area):
     try:
         update_output("Đang khởi chạy ComfyUI...", output_area)
         logging.info("Khởi chạy ComfyUI...")
-        subprocess.run(["python", "main.py"], cwd=comfyui_path_drive)
-        update_output("ComfyUI đã được khởi chạy.", output_area)
-        logging.info("ComfyUI đã được khởi chạy.")
+
+        main_py_path = os.path.join(comfyui_path_drive, "ComfyUI", "main.py")
+        if not os.path.exists(main_py_path):
+            raise FileNotFoundError(f"Không tìm thấy file main.py tại {main_py_path}")
+
+        process = subprocess.Popen(
+            ["python", main_py_path],
+            cwd=os.path.join(comfyui_path_drive, "ComfyUI"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+
+        host = None
+        for line in process.stdout:
+            print(line, end='')
+
+            # Cập nhật regex
+            match = re.search(r"Running on local URL:  (.*)", line)
+            if match:
+                host = match.group(1).strip()
+                break
+
+        if host:
+            update_output(f"Link truy cập ComfyUI: {host}", output_area)
+            logging.info("ComfyUI đã được khởi chạy.")
+        else:
+            raise Exception("Không tìm thấy địa chỉ host ComfyUI trong output.")
+
     except Exception as e:
         logging.error(f"Lỗi khi khởi chạy ComfyUI: {e}")
         display_error(f"Lỗi khi khởi chạy ComfyUI: {e}", error_output_area)
@@ -561,7 +580,7 @@ def on_start_button_clicked(b):
             return
 
         install_dependencies(output_area, error_output_area)
-        install_additional_dependencies(output_area, error_output_area)  # Thêm dòng này
+        install_additional_dependencies(output_area, error_output_area)
         clone_comfyui_repo(output_area, error_output_area)
 
         for link in basic_models_nodes.get("custom_nodes", []):
