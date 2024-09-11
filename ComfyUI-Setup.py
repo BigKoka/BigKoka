@@ -45,7 +45,7 @@ def run_command(command):
     return True
 
 def create_folders():
-    for folder in ['models', 'extensions', 'custom_nodes', 'loras', 'vae']:
+    for folder in ['models', 'extensions', 'custom_nodes', 'loras', 'vae', 'controlnet', 'embeddings']:
         os.makedirs(os.path.join(comfyui_folder, folder), exist_ok=True)
 
 def download_file(url, destination):
