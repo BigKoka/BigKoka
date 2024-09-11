@@ -29,7 +29,8 @@ basic_links = {
     'loras': [],
     'vae': [],
     'controlnet': [],
-    'embeddings': []
+    'embeddings': [],
+    'workflow': []
 }
 
 user_links = {category: [] for category in basic_links.keys()}
@@ -46,7 +47,7 @@ def run_command(command):
     return True
 
 def create_folders():
-    for folder in ['models', 'extensions', 'custom_nodes', 'loras', 'vae', 'controlnet', 'embeddings']:
+    for folder in ['models', 'extensions', 'custom_nodes', 'loras', 'vae', 'controlnet', 'embeddings', 'workflow']:
         os.makedirs(os.path.join(comfyui_folder, folder), exist_ok=True)
 
 def download_file(url, destination):
