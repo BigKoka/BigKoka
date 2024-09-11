@@ -1,3 +1,4 @@
+# @title
 import os
 import subprocess
 import time
@@ -17,22 +18,17 @@ comfyui_folder = '/content/drive/MyDrive/ComfyUI'
 version = "latest"
 
 basic_links = {
-    'models': [
-        'https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt',
-        'https://huggingface.co/stabilityai/sd-vae-ft-mse-original/resolve/main/vae-ft-mse-840000-ema-pruned.ckpt'
-    ],
-    'extensions': [
-        'https://github.com/ltdrdata/ComfyUI-Manager.git'
-    ],
+    'models': [ ],
+    'extensions': [ ],
     'custom_nodes': [
-        'https://github.com/Fannovel16/comfyui_controlnet_aux.git'
+        'https://github.com/florestefano1975/comfyui-portrait-master',
+        'https://github.com/giriss/comfy-image-saver',
+        'https://github.com/XLabs-AI/x-flux-comfyui',
+        'https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes'
+
     ],
-    'loras': [
-        'https://civitai.com/api/download/models/16576'
-    ],
-    'vae': [
-        'https://huggingface.co/stabilityai/sd-vae-ft-mse-original/resolve/main/vae-ft-mse-840000-ema-pruned.ckpt'
-    ]
+    'loras': [ ],
+    'vae': [ ]
 }
 
 user_links = {category: [] for category in basic_links.keys()}
@@ -228,5 +224,3 @@ display(app)
 
 # Cập nhật danh sách link ban đầu
 update_link_list()
-
-print("Ứng dụng đã sẵn sàng. Bạn có thể thêm link, xóa link và nhấn 'Install All' để bắt đầu quá trình cài đặt.")
