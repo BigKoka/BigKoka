@@ -18,17 +18,18 @@ comfyui_folder = '/content/drive/MyDrive/ComfyUI'
 version = "latest"
 
 basic_links = {
-    'models': [ ],
-    'extensions': [ ],
+    'models': [],
+    'extensions': [],
     'custom_nodes': [
         'https://github.com/florestefano1975/comfyui-portrait-master',
         'https://github.com/giriss/comfy-image-saver',
         'https://github.com/XLabs-AI/x-flux-comfyui',
         'https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes'
-
     ],
-    'loras': [ ],
-    'vae': [ ]
+    'loras': [],
+    'vae': [],
+    'controlnet': [],
+    'embeddings': []
 }
 
 user_links = {category: [] for category in basic_links.keys()}
@@ -49,9 +50,13 @@ def create_folders():
         os.makedirs(os.path.join(comfyui_folder, folder), exist_ok=True)
 
 def download_file(url, destination):
+    if os.path.exists(destination):
+        print(f"File {destination} đã tồn tại. Bỏ qua tải xuống.")
+        return
     response = requests.get(url)
     with open(destination, 'wb') as file:
         file.write(response.content)
+    print(f"Đã tải xuống {url} vào {destination}")
 
 def is_comfyui_ready():
     try:
@@ -136,13 +141,11 @@ def install_all(b):
                 filename = os.path.basename(link)
                 destination = os.path.join(comfyui_folder, category, filename)
                 download_file(link, destination)
-                print(f'Đã tải xuống {filename} vào {destination}')
         for category, links in user_links.items():
             for link in links:
                 filename = os.path.basename(link)
                 destination = os.path.join(comfyui_folder, category, filename)
                 download_file(link, destination)
-                print(f'Đã tải xuống {filename} vào {destination}')
         
         print("Tất cả các mục đã được cài đặt thành công!")
         
@@ -179,12 +182,27 @@ def install_all(b):
             print("Nếu bạn vẫn không thấy URL, hãy kiểm tra tab 'Tools' > 'Ports' trong Google Colab để tìm URL truy cập cho cổng 8188.")
 
 def update_link_list():
-    links_html = '<ul>'
+    table_html = '''
+    <table style="width:100%; border-collapse: collapse;">
+      <tr>
+        <th style="border: 1px solid black; padding: 5px;">Nơi lưu file</th>
+        <th style="border: 1px solid black; padding: 5px;">Link cần tải</th>
+        <th style="border: 1px solid black; padding: 5px;">Xóa link</th>
+      </tr>
+    '''
     for category in basic_links.keys():
         for link in basic_links[category] + user_links[category]:
-            links_html += f'<li>{link} <button onclick="remove_link(\'{category}\', \'{link}\')">Remove</button></li>'
-    links_html += '</ul>'
-    link_list.value = links_html
+            table_html += f'''
+            <tr>
+              <td style="border: 1px solid black; padding: 5px;">{category}</td>
+              <td style="border: 1px solid black; padding: 5px;">{link}</td>
+              <td style="border: 1px solid black; padding: 5px;">
+                <button onclick="remove_link('{category}', '{link}')">Remove</button>
+              </td>
+            </tr>
+            '''
+    table_html += '</table>'
+    link_list.value = table_html
 
 # Tạo widgets
 category_dropdown = widgets.Dropdown(options=list(basic_links.keys()), description='Category:')
