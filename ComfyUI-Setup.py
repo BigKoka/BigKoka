@@ -147,6 +147,14 @@ def setup_default_workflow():
 
     print(f"Đã cài đặt '{latest_workflow}' làm workflow mặc định.")
 
+    # Thêm bước xác minh
+    with open(config_path, 'r') as f:
+        updated_config = f.read()
+    if f'app_config.default_workflow = "{latest_workflow}";' in updated_config:
+        print("Xác nhận: Workflow mặc định đã được cài đặt chính xác trong config.js")
+    else:
+        print("Cảnh báo: Không thể xác nhận việc cài đặt workflow mặc định trong config.js")
+
 # Hàm xử lý sự kiện
 def add_link(b):
     category = category_dropdown.value
@@ -225,6 +233,15 @@ def install_all(b):
 
         print("Đang cài đặt workflow mặc định...")
         setup_default_workflow()
+
+        print("Kiểm tra nội dung của config.js:")
+        config_path = os.path.join(comfyui_folder, 'web', 'scripts', 'config.js')
+        with open(config_path, 'r') as f:
+            print(f.read())
+
+        print("Liệt kê các file trong thư mục workflow:")
+        workflow_folder = os.path.join(comfyui_folder, 'web', 'workflows')
+        print(os.listdir(workflow_folder))
 
         print("Đang khởi động ComfyUI...")
         os.chdir(comfyui_folder)
