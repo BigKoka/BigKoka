@@ -5,17 +5,21 @@ import time
 import requests
 import re
 import shutil
+import json
 from google.colab import drive
 from google.colab import output
 import ipywidgets as widgets
 from IPython.display import display, HTML, clear_output
+from tqdm.notebook import tqdm
+from urllib.parse import urlparse
 
-# Cài đặt ipywidgets nếu chưa có
-!pip install ipywidgets -q
+# Cài đặt ipywidgets và tqdm nếu chưa có
+!pip install ipywidgets tqdm -q
 
 # Thiết lập các biến và cấu trúc dữ liệu
 comfyui_folder = '/content/drive/MyDrive/ComfyUI'
 version = "latest"
+default_workflow_url = "https://raw.githubusercontent.com/comfyanonymous/ComfyUI_examples/main/examples/example_workflow.json"
 
 basic_links = {
     'models': [],
@@ -51,13 +55,27 @@ def create_folders():
         os.makedirs(os.path.join(comfyui_folder, folder), exist_ok=True)
 
 def download_file(url, destination):
+    parsed_url = urlparse(url)
+    if not parsed_url.scheme:
+        print(f"URL không hợp lệ: {url}")
+        return False
+
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+
     if os.path.exists(destination):
         print(f"File {destination} đã tồn tại. Bỏ qua tải xuống.")
-        return
-    response = requests.get(url)
-    with open(destination, 'wb') as file:
-        file.write(response.content)
-    print(f"Đã tải xuống {url} vào {destination}")
+        return True
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        with open(destination, 'wb') as file:
+            file.write(response.content)
+        print(f"Đã tải xuống {url} vào {destination}")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"Lỗi khi tải xuống {url}: {str(e)}")
+        return False
 
 def is_comfyui_ready():
     try:
@@ -80,14 +98,69 @@ def get_cloudflared_url():
 
     return None
 
+def setup_default_workflow():
+    workflow_folder = os.path.join(comfyui_folder, 'workflow')
+    comfyui_workflow_folder = os.path.join(comfyui_folder, 'web', 'workflows')
+    os.makedirs(comfyui_workflow_folder, exist_ok=True)
+
+    workflow_files = [f for f in os.listdir(workflow_folder) if f.endswith('.json')]
+
+    if not workflow_files:
+        print("Không tìm thấy file workflow nào trong thư mục workflow. Đang tải workflow mặc định...")
+        default_workflow_filename = os.path.basename(urlparse(default_workflow_url).path)
+        default_workflow_path = os.path.join(workflow_folder, default_workflow_filename)
+        if download_file(default_workflow_url, default_workflow_path):
+            workflow_files = [default_workflow_filename]
+        else:
+            print("Không thể tải workflow mặc định. Vui lòng kiểm tra kết nối mạng và thử lại.")
+            return
+
+    for filename in workflow_files:
+        src = os.path.join(workflow_folder, filename)
+        dst = os.path.join(comfyui_workflow_folder, filename)
+        shutil.copy(src, dst)
+        print(f"Đã tải workflow: {filename}")
+
+    latest_workflow = max(
+        [f for f in os.listdir(comfyui_workflow_folder) if f.endswith('.json')],
+        key=lambda f: os.path.getmtime(os.path.join(comfyui_workflow_folder, f))
+    )
+
+    config_path = os.path.join(comfyui_folder, 'web', 'scripts', 'config.js')
+
+    if not os.path.exists(config_path):
+        print(f"Không tìm thấy file config.js tại {config_path}. Đang tạo file mới...")
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, 'w') as f:
+            f.write('app_config = {};\n')
+
+    with open(config_path, 'r') as f:
+        config = f.read()
+
+    config = re.sub(r'app_config\.default_workflow\s*=\s*".*?";', f'app_config.default_workflow = "{latest_workflow}";', config)
+
+    if 'app_config.default_workflow' not in config:
+        config += f'\napp_config.default_workflow = "{latest_workflow}";\n'
+
+    with open(config_path, 'w') as f:
+        f.write(config)
+
+    print(f"Đã cài đặt '{latest_workflow}' làm workflow mặc định.")
+
 # Hàm xử lý sự kiện
 def add_link(b):
     category = category_dropdown.value
     link = link_input.value
     if link:
-        user_links[category].append(link)
-        link_input.value = ''
-        update_link_list()
+        if link in basic_links[category] or any(link in user_links[cat] for cat in user_links):
+            with status_output:
+                print(f"Link '{link}' đã tồn tại trong danh sách.")
+        else:
+            user_links[category].append(link)
+            link_input.value = ''
+            update_link_list()
+            with status_output:
+                print(f"Đã thêm link '{link}' vào danh sách {category}.")
 
 def remove_link(category, link):
     if link in user_links[category]:
@@ -147,9 +220,12 @@ def install_all(b):
                 filename = os.path.basename(link)
                 destination = os.path.join(comfyui_folder, category, filename)
                 download_file(link, destination)
-        
+
         print("Tất cả các mục đã được cài đặt thành công!")
-        
+
+        print("Đang cài đặt workflow mặc định...")
+        setup_default_workflow()
+
         print("Đang khởi động ComfyUI...")
         os.chdir(comfyui_folder)
         comfyui_process = subprocess.Popen(['python', 'main.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -157,15 +233,18 @@ def install_all(b):
         print("Đang đợi ComfyUI khởi động...")
         timeout = 300  # 5 phút
         start_time = time.time()
+        pbar = tqdm(total=timeout, desc="Khởi động ComfyUI", unit="giây")
         while not is_comfyui_ready():
             if time.time() - start_time > timeout:
                 print("ComfyUI không khởi động được trong thời gian chờ. Đang in logs...")
                 output, error = comfyui_process.communicate()
                 print("Output:", output.decode())
                 print("Error:", error.decode())
+                pbar.close()
                 return
-            time.sleep(5)
-            print(".", end="", flush=True)
+            time.sleep(1)
+            pbar.update(1)
+        pbar.close()
 
         print("\nComfyUI đã sẵn sàng!")
 
