@@ -1,4 +1,6 @@
 # @title
+# Cài đặt ipywidgets và tqdm nếu chưa có
+!pip install ipywidgets tqdm gitpython -q
 import os
 import subprocess
 import time
@@ -12,9 +14,7 @@ import ipywidgets as widgets
 from IPython.display import display, HTML, clear_output
 from tqdm.notebook import tqdm
 from urllib.parse import urlparse
-
-# Cài đặt ipywidgets và tqdm nếu chưa có
-!pip install ipywidgets tqdm -q
+import git
 
 # Thiết lập các biến và cấu trúc dữ liệu
 comfyui_folder = '/content/drive/MyDrive/ComfyUI'
@@ -28,7 +28,8 @@ basic_links = {
         'https://github.com/florestefano1975/comfyui-portrait-master',
         'https://github.com/giriss/comfy-image-saver',
         'https://github.com/XLabs-AI/x-flux-comfyui',
-        'https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes'
+        'https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes',
+        'https://github.com/ltdrdata/ComfyUI-Manager',
     ],
     'loras': [],
     'vae': [],
@@ -38,7 +39,7 @@ basic_links = {
 }
 
 user_links = {category: [] for category in basic_links.keys()}
-
+default_workflow_url = "https://raw.githubusercontent.com/BigKoka/BigKoka/main/workflow-comfyui---flux-portrait-master-v3.json"
 # Hàm tiện ích
 def run_command(command):
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, universal_newlines=True)
@@ -51,8 +52,22 @@ def run_command(command):
     return True
 
 def create_folders():
-    for folder in ['models', 'extensions', 'custom_nodes', 'loras', 'vae', 'controlnet', 'embeddings', 'workflow']:
+    for folder in ['models', 'custom_nodes', 'loras', 'vae', 'controlnet', 'embeddings', 'workflow']:
         os.makedirs(os.path.join(comfyui_folder, folder), exist_ok=True)
+        os.makedirs(os.path.join(comfyui_folder, 'web', 'workflows'), exist_ok=True)
+
+def is_git_repo(url):
+    return url.endswith('.git') or ('github.com' in url and not url.endswith('.json'))
+
+def clone_or_pull_repo(url, destination):
+    if os.path.exists(destination):
+        print(f"Thư mục {destination} đã tồn tại. Đang cập nhật...")
+        repo = git.Repo(destination)
+        repo.remotes.origin.pull()
+    else:
+        print(f"Đang clone repository {url}...")
+        git.Repo.clone_from(url, destination)
+    print(f"Đã cập nhật/clone repository {url} thành công!")
 
 def download_file(url, destination):
     parsed_url = urlparse(url)
@@ -77,6 +92,27 @@ def download_file(url, destination):
         print(f"Lỗi khi tải xuống {url}: {str(e)}")
         return False
 
+def download_json(url, destination):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an HTTPError for bad responses
+
+        # Kiểm tra xem nội dung có phải là JSON hợp lệ không
+        json_content = response.json()
+
+        with open(destination, 'w') as f:
+            json.dump(json_content, f)
+        print(f"Đã tải xuống file JSON từ {url} vào {destination}")
+    except requests.exceptions.RequestException as e:
+        print(f"Lỗi khi tải xuống từ {url}: {str(e)}")
+    except json.JSONDecodeError as e:
+        print(f"URL {url} không trả về JSON hợp lệ: {str(e)}")
+        print("Nội dung nhận được:")
+        print(response.text[:500])  # In 500 ký tự đầu tiên của phản hồi
+    except Exception as e:
+        print(f"Lỗi không xác định khi xử lý {url}: {str(e)}")
+
+
 def is_comfyui_ready():
     try:
         response = requests.get('http://localhost:8188')
@@ -99,58 +135,36 @@ def get_cloudflared_url():
     return None
 
 def setup_default_workflow():
-    workflow_folder = os.path.join(comfyui_folder, 'workflow')
-    comfyui_workflow_folder = os.path.join(comfyui_folder, 'web', 'workflows')
-    os.makedirs(comfyui_workflow_folder, exist_ok=True)
+    workflow_folder = os.path.join(comfyui_folder, 'web', 'workflows')
+    os.makedirs(workflow_folder, exist_ok=True)
+    default_workflow_path = os.path.join(workflow_folder, 'default_workflow.json')
 
-    workflow_files = [f for f in os.listdir(workflow_folder) if f.endswith('.json')]
-
-    if not workflow_files:
-        print("Không tìm thấy file workflow nào trong thư mục workflow. Đang tải workflow mặc định...")
-        default_workflow_filename = os.path.basename(urlparse(default_workflow_url).path)
-        default_workflow_path = os.path.join(workflow_folder, default_workflow_filename)
-        if download_file(default_workflow_url, default_workflow_path):
-            workflow_files = [default_workflow_filename]
-        else:
-            print("Không thể tải workflow mặc định. Vui lòng kiểm tra kết nối mạng và thử lại.")
-            return
-
-    for filename in workflow_files:
-        src = os.path.join(workflow_folder, filename)
-        dst = os.path.join(comfyui_workflow_folder, filename)
-        shutil.copy(src, dst)
-        print(f"Đã tải workflow: {filename}")
-
-    latest_workflow = max(
-        [f for f in os.listdir(comfyui_workflow_folder) if f.endswith('.json')],
-        key=lambda f: os.path.getmtime(os.path.join(comfyui_workflow_folder, f))
-    )
+    try:
+        download_json(default_workflow_url, default_workflow_path)
+    except Exception as e:
+        print(f"Không thể tải workflow mặc định: {str(e)}")
+        print("Đang tạo workflow trống...")
+        with open(default_workflow_path, 'w') as f:
+            json.dump({}, f)
 
     config_path = os.path.join(comfyui_folder, 'web', 'scripts', 'config.js')
-
-    if not os.path.exists(config_path):
-        print(f"Không tìm thấy file config.js tại {config_path}. Đang tạo file mới...")
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, 'w') as f:
-            f.write('app_config = {};\n')
-
     with open(config_path, 'r') as f:
         config = f.read()
 
-    config = re.sub(r'app_config\.default_workflow\s*=\s*".*?";', f'app_config.default_workflow = "{latest_workflow}";', config)
+    config = re.sub(r'app_config\.default_workflow\s*=\s*".*?";', f'app_config.default_workflow = "default_workflow.json";', config)
 
     if 'app_config.default_workflow' not in config:
-        config += f'\napp_config.default_workflow = "{latest_workflow}";\n'
+        config += f'\napp_config.default_workflow = "default_workflow.json";\n'
 
     with open(config_path, 'w') as f:
         f.write(config)
 
-    print(f"Đã cài đặt '{latest_workflow}' làm workflow mặc định.")
+    print(f"Đã cài đặt 'default_workflow.json' làm workflow mặc định.")
 
     # Thêm bước xác minh
     with open(config_path, 'r') as f:
         updated_config = f.read()
-    if f'app_config.default_workflow = "{latest_workflow}";' in updated_config:
+    if 'app_config.default_workflow = "default_workflow.json";' in updated_config:
         print("Xác nhận: Workflow mặc định đã được cài đặt chính xác trong config.js")
     else:
         print("Cảnh báo: Không thể xác nhận việc cài đặt workflow mặc định trong config.js")
@@ -178,6 +192,8 @@ def remove_link(category, link):
     update_link_list()
 
 def install_all(b):
+
+
     status_output.clear_output()
     with status_output:
         print("Đang mount Google Drive...")
@@ -209,6 +225,12 @@ def install_all(b):
                 print("Không thể clone repository ComfyUI. Kiểm tra kết nối mạng và thử lại.")
                 return
 
+        os.makedirs(os.path.join(comfyui_folder, 'web', 'scripts'), exist_ok=True)
+        config_path = os.path.join(comfyui_folder, 'web', 'scripts', 'config.js')
+        if not os.path.exists(config_path):
+            with open(config_path, 'w') as f:
+                f.write('app_config = {};\n')
+
         print("Đang cài đặt các thư viện phụ thuộc...")
         os.chdir(comfyui_folder)
         if run_command("pip install -r requirements.txt"):
@@ -218,16 +240,23 @@ def install_all(b):
             return
 
         create_folders()
-        for category, links in basic_links.items():
-            for link in links:
-                filename = os.path.basename(link)
-                destination = os.path.join(comfyui_folder, category, filename)
-                download_file(link, destination)
-        for category, links in user_links.items():
-            for link in links:
-                filename = os.path.basename(link)
-                destination = os.path.join(comfyui_folder, category, filename)
-                download_file(link, destination)
+
+        # Xử lý cả basic_links và user_links
+        for category in basic_links.keys():
+            all_links = basic_links[category] + user_links[category]
+            for link in all_links:
+                if is_git_repo(link):
+                    repo_name = os.path.splitext(os.path.basename(link))[0]
+                    destination = os.path.join(comfyui_folder, category, repo_name)
+                    clone_or_pull_repo(link, destination)
+                elif link.endswith('.json'):
+                    filename = os.path.basename(link)
+                    destination = os.path.join(comfyui_folder, category, filename)
+                    download_json(link, destination)
+                else:
+                    filename = os.path.basename(link)
+                    destination = os.path.join(comfyui_folder, category, filename)
+                    download_file(link, destination)
 
         print("Tất cả các mục đã được cài đặt thành công!")
 
@@ -277,6 +306,7 @@ def install_all(b):
             print("Vui lòng kiểm tra URL được tạo bởi Colab ở trên.")
 
             print("Nếu bạn vẫn không thấy URL, hãy kiểm tra tab 'Tools' > 'Ports' trong Google Colab để tìm URL truy cập cho cổng 8188.")
+
 
 def update_link_list():
     table_html = '''
