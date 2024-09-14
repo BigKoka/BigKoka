@@ -1,5 +1,4 @@
-# @title
-# Cài đặt các thư viện cần thiết
+# @title Cài đặt các thư viện cần thiết
 !pip install ipywidgets tqdm gitpython piexif -q
 import os
 import subprocess
@@ -34,7 +33,9 @@ basic_links = {
     'vae': [],
     'controlnet': [],
     'embeddings': [],
-    'workflow': []
+    'workflow': [
+        'https://raw.githubusercontent.com/BigKoka/BigKoka/main/workflow-comfyui---flux-portrait-master-v3.json'
+    ]
 }
 
 user_links = {category: [] for category in basic_links.keys()}
@@ -130,6 +131,38 @@ def get_cloudflared_url():
 
     return None
 
+# Hàm mới để thay thế workflow mặc định
+def replace_default_workflow():
+    web_folder = os.path.join(comfyui_folder, 'web')
+    assets_folder = os.path.join(web_folder, 'assets')
+    workflow_basic_path = os.path.join(comfyui_folder, 'workflow', 'workflow_basic.json')
+
+    # Sao chép workflow mới vào thư mục assets
+    shutil.copy(workflow_basic_path, os.path.join(assets_folder, 'workflow_basic.json'))
+
+    # Tìm file JavaScript chính
+    index_html = os.path.join(web_folder, 'index.html')
+    if os.path.exists(index_html):
+        with open(index_html, 'r') as f:
+            content = f.read()
+        match = re.search(r'<script type="module" crossorigin src="([^"]+)"', content)
+        if match:
+            index_file = os.path.join(web_folder, match.group(1))
+
+            # Thay đổi 'const defaultGraph' thành 'let defaultGraph'
+            run_command(f"sed -i 's/const defaultGraph/let defaultGraph/g' {index_file}")
+
+            # Chèn workflow mới vào file JavaScript
+            workflow_content = json.dumps(json.load(open(workflow_basic_path)))
+            insert_command = f"sed -i '/window\\.comfyAPI\\.defaultGraph\\.defaultGraph/i defaultGraph={workflow_content};' {index_file}"
+            run_command(insert_command)
+
+            print("Đã thay thế workflow mặc định thành công!")
+        else:
+            print("Không tìm thấy script tag trong index.html")
+    else:
+        print("Không tìm thấy file index.html")
+
 # Hàm xử lý sự kiện
 def add_link(b):
     category = category_dropdown.value
@@ -202,7 +235,7 @@ def install_all(b):
                     destination = os.path.join(comfyui_folder, category, repo_name)
                     clone_or_pull_repo(link, destination)
                 elif link.endswith('.json'):
-                    filename = os.path.basename(link)
+                    filename = 'workflow_basic.json' if category == 'workflow' else os.path.basename(link)
                     destination = os.path.join(comfyui_folder, category, filename)
                     download_json(link, destination)
                 else:
@@ -211,6 +244,9 @@ def install_all(b):
                     download_file(link, destination)
 
         print("Tất cả các mục đã được cài đặt thành công!")
+
+        print("Đang thay thế workflow mặc định...")
+        replace_default_workflow()
 
         print("Đang khởi động ComfyUI...")
         os.chdir(comfyui_folder)
@@ -241,30 +277,30 @@ def install_all(b):
         else:
             print("Không thể lấy được URL từ Cloudflared. Đang thử các phương án khác...")
 
-            print("Kiểm tra port forwarding của Google Colab...")
-            output.serve_kernel_port_as_window(8188)
-            print("Vui lòng kiểm tra URL được tạo bởi Colab ở trên.")
+        print("Kiểm tra port forwarding của Google Colab...")
+        output.serve_kernel_port_as_window(8188)
+        print("Vui lòng kiểm tra URL được tạo bởi Colab ở trên.")
 
-            print("Nếu bạn vẫn không thấy URL, hãy kiểm tra tab 'Tools' > 'Ports' trong Google Colab để tìm URL truy cập cho cổng 8188.")
+        print("Nếu bạn vẫn không thấy URL, hãy kiểm tra tab 'Tools' > 'Ports' trong Google Colab để tìm URL truy cập cho cổng 8188.")
 
 def update_link_list():
     table_html = '''
     <table style="width:100%; border-collapse: collapse;">
-      <tr>
-        <th style="border: 1px solid black; padding: 5px;">Nơi lưu file</th>
-        <th style="border: 1px solid black; padding: 5px;">Link cần tải</th>
-        <th style="border: 1px solid black; padding: 5px;">Xóa link</th>
-      </tr>
+    <tr>
+    <th style="border: 1px solid black; padding: 5px;">Nơi lưu file</th>
+    <th style="border: 1px solid black; padding: 5px;">Link cần tải</th>
+    <th style="border: 1px solid black; padding: 5px;">Xóa link</th>
+    </tr>
     '''
     for category in basic_links.keys():
         for link in basic_links[category] + user_links[category]:
             table_html += f'''
             <tr>
-              <td style="border: 1px solid black; padding: 5px;">{category}</td>
-              <td style="border: 1px solid black; padding: 5px;">{link}</td>
-              <td style="border: 1px solid black; padding: 5px;">
-                <button onclick="remove_link('{category}', '{link}')">Remove</button>
-              </td>
+            <td style="border: 1px solid black; padding: 5px;">{category}</td>
+            <td style="border: 1px solid black; padding: 5px;">{link}</td>
+            <td style="border: 1px solid black; padding: 5px;">
+            <button onclick="remove_link('{category}', '{link}')">Remove</button>
+            </td>
             </tr>
             '''
     table_html += '</table>'
