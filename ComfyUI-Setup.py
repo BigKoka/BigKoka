@@ -11,18 +11,20 @@ import requests
 import re
 import shutil
 import json
-from google.colab import drive, output
+from google.colab import drive, output, files
 import ipywidgets as widgets
 from IPython.display import display, HTML, clear_output
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 from urllib.parse import urlparse
 import git
 from google.colab import output as colab_output
+import io
 
 # Cấu hình
 COMFYUI_FOLDER = '/content/drive/MyDrive/ComfyUI'
 VERSION = "latest"
 CLOUDFLARED_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
+WORKFLOW_FOLDER = "/content/drive/MyDrive/ComfyUI/user/default/workflows"
 
 # Định nghĩa các liên kết cơ bản
 BASIC_LINKS = {
@@ -40,7 +42,8 @@ BASIC_LINKS = {
     'controlnet': [],
     'embeddings': [],
     'workflow': [
-        'https://raw.githubusercontent.com/BigKoka/BigKoka/main/workflow-comfyui---flux-portrait-master-v3.json'
+        'https://raw.githubusercontent.com/BigKoka/BigKoka/main/workflow-comfyui---flux-portrait-master-v3.json',
+        'https://github.com/BigKoka/workflow-duc'
     ]
 }
 
@@ -62,6 +65,7 @@ def create_folders():
     """Tạo các thư mục cần thiết"""
     for folder in BASIC_LINKS.keys():
         os.makedirs(os.path.join(COMFYUI_FOLDER, folder), exist_ok=True)
+    os.makedirs(WORKFLOW_FOLDER, exist_ok=True)
 
 def is_git_repo(url):
     """Kiểm tra xem URL có phải là một repository Git không"""
@@ -104,7 +108,7 @@ def download_file(url, destination):
             unit='iB',
             unit_scale=True,
             unit_divisor=1024,
-            disable=True, # Thêm dòng này
+            disable=True,
         ) as progress_bar:
             for data in response.iter_content(block_size):
                 size = file.write(data)
@@ -227,9 +231,15 @@ def install_all(b):
                     repo_name = os.path.splitext(os.path.basename(link))[0]
                     destination = os.path.join(COMFYUI_FOLDER, category, repo_name)
                     clone_or_pull_repo(link, destination)
+                    if category == 'workflow':
+                        # Copy all JSON files from the cloned repo to the workflow folder
+                        for root, dirs, files in os.walk(destination):
+                            for file in files:
+                                if file.endswith('.json'):
+                                    shutil.copy(os.path.join(root, file), WORKFLOW_FOLDER)
                 elif link.endswith('.json'):
                     filename = os.path.basename(link)
-                    destination = os.path.join(COMFYUI_FOLDER, category, filename)
+                    destination = os.path.join(WORKFLOW_FOLDER, filename)
                     download_json(link, destination)
                 else:
                     filename = os.path.basename(link)
@@ -245,16 +255,16 @@ def install_all(b):
         print("Đang đợi ComfyUI khởi động...")
         timeout = 300  # 5 phút
         start_time = time.time()
-        with tqdm(total=timeout, desc="Đang khởi động ComfyUI", unit="giây") as pbar:
+        with tqdm(total=timeout, desc="Đang khởi động ComfyUI", unit="giây", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as progress_bar:
             while not is_comfyui_ready():
                 if time.time() - start_time > timeout:
-                    print("ComfyUI không thể khởi động trong thời gian chờ. Đang in log...")
+                    print("\nComfyUI không thể khởi động trong thời gian chờ. Đang in log...")
                     output, error = comfyui_process.communicate()
                     print("Đầu ra:", output.decode())
                     print("Lỗi:", error.decode())
                     return
                 time.sleep(1)
-                pbar.update(1)
+                progress_bar.update(1)
 
         print("\nComfyUI đã sẵn sàng!")
 
@@ -265,11 +275,7 @@ def install_all(b):
         else:
             print("Không thể lấy URL từ Cloudflared. Đang thử phương pháp thay thế...")
 
-        print("Đang kiểm tra chuyển tiếp cổng Google Colab...")
-        colab_output.serve_kernel_port_as_window(8188)
-        print("Vui lòng kiểm tra URL được tạo bởi Colab ở trên.")
-
-        print("Nếu bạn vẫn không thấy URL, hãy kiểm tra tab 'Tools' > 'Ports' trong Google Colab để tìm URL truy cập cho cổng 8188.")
+        print("Vui lòng kiểm tra tab 'Tools' > 'Ports' trong Google Colab để tìm URL truy cập cho cổng 8188.")
 
 def update_link_list():
     """Cập nhật danh sách liên kết hiển thị"""
@@ -321,7 +327,9 @@ def analyze_workflow(workflow):
         'extensions': set()
     }
 
-    for node in workflow.get('nodes', []):
+    nodes = workflow.get('nodes', [])
+
+    for node in nodes:
         node_type = node.get('type', '')
 
         # Phát hiện custom nodes
@@ -347,6 +355,107 @@ def analyze_workflow(workflow):
 
     return required_components
 
+def analyze_workflow_details(workflow):
+    """Tạo tóm tắt chi tiết về cách thức hoạt động của workflow dựa trên file JSON"""
+    nodes = workflow.get('nodes', [])
+    sorted_nodes = sorted(nodes, key=lambda x: x.get('id', 0))
+
+    # Phân loại nodes
+    categories = {
+        "Khởi tạo": [],
+        "Xử lý Prompt": [],
+        "Mã hóa CLIP & Điều hướng": [],
+        "Sampling (Tạo ảnh)": [],
+        "Xử lý kết quả": [],
+        "Khác": []
+    }
+
+    for node in sorted_nodes:
+        node_type = node.get('type', '')
+        if node_type in ['UNETLoader', 'VAELoader', 'CLIPLoader', 'LoraLoader', 'EmptyLatentImage', 'RandomNoise']:
+            categories["Khởi tạo"].append(node)
+        elif 'Text' in node_type or 'Prompt' in node_type:
+            categories["Xử lý Prompt"].append(node)
+        elif 'CLIP' in node_type or 'Encode' in node_type:
+            categories["Mã hóa CLIP & Điều hướng"].append(node)
+        elif 'Sampler' in node_type or 'KSampler' in node_type:
+            categories["Sampling (Tạo ảnh)"].append(node)
+        elif node_type in ['VAEDecode', 'SaveImage', 'PreviewImage']:
+            categories["Xử lý kết quả"].append(node)
+        else:
+            categories["Khác"].append(node)
+
+    # Tạo tóm tắt
+    summary = ["Workflow này được thiết kế để tạo ra hình ảnh bằng ComfyUI, sử dụng các mô hình và kỹ thuật xử lý prompt nâng cao."]
+
+    for category, category_nodes in categories.items():
+        if category_nodes:
+            summary.append(f"**{category}:**")
+            for node in category_nodes:
+                node_type = node.get('type', '')
+                node_inputs = node.get('inputs', [])
+                node_widgets = node.get('widgets_values', [])
+                
+                description = f"* **{node_type}:** "
+                
+                if node_type == 'UNETLoader':
+                    description += f"Tải mô hình UNET {node_widgets[0] if node_widgets else 'không xác định'}."
+                elif node_type == 'VAELoader':
+                    description += f"Tải mô hình VAE {node_widgets[0] if node_widgets else 'không xác định'}."
+                elif node_type == 'CLIPLoader' or node_type == 'CLIPTextEncode':
+                    description += f"Tải/sử dụng CLIP model {node_widgets[0] if node_widgets else 'không xác định'}."
+                elif node_type == 'EmptyLatentImage':
+                    width, height = node_widgets[:2] if len(node_widgets) >= 2 else ('không xác định', 'không xác định')
+                    description += f"Tạo ảnh latent trống kích thước {width}x{height}."
+                elif node_type == 'RandomNoise':
+                    description += f"Tạo noise ngẫu nhiên với seed {node_widgets[0] if node_widgets else 'không xác định'}."
+                elif 'KSampler' in node_type:
+                    sampler = node_widgets[0] if node_widgets else 'không xác định'
+                    steps = node_widgets[1] if len(node_widgets) > 1 else 'không xác định'
+                    description += f"Sử dụng sampler {sampler} với {steps} steps."
+                elif node_type == 'SaveImage':
+                    description += "Lưu ảnh đã tạo."
+                elif node_type == 'PreviewImage':
+                    description += "Hiển thị ảnh để preview."
+                else:
+                    description += "Xử lý dữ liệu."
+                
+                summary.append(description)
+
+    summary.append("**Tóm lại:** Workflow này sử dụng các mô hình đã được tải để tạo ảnh, bao gồm các bước: khởi tạo mô hình và dữ liệu, xử lý prompt, mã hóa CLIP, sampling để tạo ảnh, và cuối cùng là xử lý kết quả (hiển thị và lưu ảnh).")
+
+    return "\n".join(summary)
+
+def get_workflow_process(workflow):
+    """Phân tích quy trình hoạt động của workflow"""
+    process = []
+    nodes = workflow.get('nodes', [])
+
+    # Sắp xếp nodes theo thứ tự thực hiện
+    sorted_nodes = sorted(nodes, key=lambda x: x.get('id', 0))
+
+    for node in sorted_nodes:
+        node_type = node.get('type', '')
+        inputs = node.get('inputs', [])
+        outputs = node.get('outputs', [])
+
+        step = f"Node: {node_type}\n"
+
+        if inputs:
+            step += "Inputs:\n"
+            for input_data in inputs:
+                input_name = input_data.get('name', 'Unknown')
+                input_type = input_data.get('type', 'Unknown')
+                step += f"  - {input_name}: {input_type}\n"
+
+        if outputs:
+            step += "Outputs:\n"
+            for output in outputs:
+                step += f"  - {output.get('name', 'Unknown')}: {output.get('type', 'Unknown')}\n"
+
+        process.append(step)
+
+    return "\n".join(process)
 
 def check_workflow(b):
     """Kiểm tra workflow khi người dùng nhấn nút"""
@@ -356,13 +465,27 @@ def check_workflow(b):
             print("Vui lòng nhập URL của workflow.")
         return
 
+    with workflow_output:
+        clear_output()
+        print(f"Đang tải workflow từ URL: {url}")
+        
     workflow = download_workflow(url)
+    
     if workflow:
         try:
-            required_components = analyze_workflow(workflow)
             with workflow_output:
-                clear_output()
-                print("Các thành phần cần thiết cho workflow:")
+                print("Đã tải workflow thành công. Đang phân tích...")
+
+            required_components = analyze_workflow(workflow)
+            workflow_details = analyze_workflow_details(workflow)
+
+            with workflow_output:
+                print("Lưu ý: Tất cả thông tin dưới đây được trích xuất trực tiếp từ file JSON workflow tải về từ URL bạn cung cấp.")
+                print("---")
+
+            with workflow_output:
+                print("\nKết quả phân tích workflow:")
+                print("\nCác thành phần cần thiết cho workflow:")
                 for category, items in required_components.items():
                     if items:
                         print(f"\n{category.capitalize()}:")
@@ -371,6 +494,27 @@ def check_workflow(b):
 
                 if all(len(items) == 0 for items in required_components.values()):
                     print("\nKhông tìm thấy thành phần cụ thể nào. Workflow có thể không cần thêm thành phần hoặc sử dụng cấu trúc khác.")
+
+                print("\nTóm tắt cách thức hoạt động của workflow:")
+                print(workflow_details)
+
+                # Lưu workflow vào bộ nhớ đệm
+                filename = os.path.basename(urlparse(url).path)
+                if not filename.endswith('.json'):
+                    filename += '.json'
+                save_path = os.path.join(WORKFLOW_FOLDER, filename)
+                with open(save_path, 'w') as f:
+                    json.dump(workflow, f, indent=2)
+                print(f"\nĐã lưu workflow vào: {save_path}")
+
+                # Thêm link vào BASIC_LINKS
+                if url not in BASIC_LINKS['workflow']:
+                    BASIC_LINKS['workflow'].append(url)
+                    print(f"\nĐã thêm link workflow vào danh sách cần tải: {url}")
+                    update_link_list()
+                else:
+                    print(f"\nLink workflow đã tồn tại trong danh sách cần tải.")
+
         except Exception as e:
             with workflow_output:
                 print(f"Lỗi khi phân tích workflow: {str(e)}")
@@ -378,7 +522,6 @@ def check_workflow(b):
     else:
         with workflow_output:
             print("Không thể tải workflow. Vui lòng kiểm tra URL và thử lại.")
-
 # Tạo các widget
 category_dropdown = widgets.Dropdown(options=list(BASIC_LINKS.keys()), description='Danh mục:')
 link_input = widgets.Text(description='Liên kết:')
