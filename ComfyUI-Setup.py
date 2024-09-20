@@ -30,8 +30,7 @@ WORKFLOW_FOLDER = "/content/drive/MyDrive/ComfyUI/user/default/workflows"
 BASIC_LINKS = {
     'models': [],
     'extensions': [],
-    'custom_nodes': [        
-        'https://github.com/XLabs-AI/x-flux-comfyui',
+    'custom_nodes': [
         'https://github.com/ltdrdata/ComfyUI-Manager',
     ],
     'loras': [],
@@ -39,9 +38,8 @@ BASIC_LINKS = {
     'controlnet': [],
     'embeddings': [],
     'workflow': [
-        'https://raw.githubusercontent.com/BigKoka/BigKoka/main/workflow-comfyui---flux-portrait-master-v3.json',
-        'https://github.com/BigKoka/workflow-duc'
-    ]
+    ],
+    'embeddings': [],
 }
 
 # Khởi tạo danh sách liên kết của người dùng
@@ -256,7 +254,7 @@ def install_all(b):
         comfyui_process = subprocess.Popen(['python', 'main.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         print("Đang đợi ComfyUI khởi động...")
-        timeout = 300  # 5 phút
+        timeout = 1800  # 5 phút
         start_time = time.time()
         with tqdm(total=timeout, desc="Đang khởi động ComfyUI", unit="giây", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as progress_bar:
             while not is_comfyui_ready():
