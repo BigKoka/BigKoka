@@ -50,6 +50,9 @@ BASIC_LINKS = {
 # Khởi tạo danh sách liên kết của người dùng
 user_links = {category: [] for category in BASIC_LINKS.keys()}
 
+# Khởi tạo danh sách liên kết mới
+new_links = {category: [] for category in BASIC_LINKS.keys()}
+
 def run_command(command):
     """Chạy lệnh shell và trả về kết quả"""
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, universal_newlines=True)
@@ -185,7 +188,10 @@ def remove_link(category, link):
         user_links[category].remove(link)
     elif link in BASIC_LINKS[category]:
         BASIC_LINKS[category].remove(link)
+    elif link in new_links[category]:
+        new_links[category].remove(link)
     update_link_list()
+    update_new_link_list()
 
 def install_all(b):
     """Cài đặt tất cả các thành phần"""
@@ -290,6 +296,30 @@ def update_link_list():
     for category in BASIC_LINKS.keys():
         for link in BASIC_LINKS[category] + user_links[category]:
             table_html += f'''
+              <tr>
+              <td style="border: 1px solid black; padding: 5px;">{category}</td>
+              <td style="border: 1px solid black; padding: 5px;">{link}</td>
+              <td style="border: 1px solid black; padding: 5px;">
+              <button onclick="remove_link('{category}', '{link}')">Xóa</button>
+              </td>
+              </tr>
+              '''
+    table_html += '</table>'
+    link_list.value = table_html
+
+def update_new_link_list():
+    """Cập nhật danh sách liên kết mới hiển thị"""
+    table_html = '''
+    <table style="width:100%; border-collapse: collapse;">
+    <tr>
+    <th style="border: 1px solid black; padding: 5px;">Danh mục</th>
+    <th style="border: 1px solid black; padding: 5px;">Liên kết</th>
+    <th style="border: 1px solid black; padding: 5px;">Xóa</th>
+    </tr>
+    '''
+    for category in new_links.keys():
+        for link in new_links[category]:
+            table_html += f'''
             <tr>
             <td style="border: 1px solid black; padding: 5px;">{category}</td>
             <td style="border: 1px solid black; padding: 5px;">{link}</td>
@@ -299,229 +329,47 @@ def update_link_list():
             </tr>
             '''
     table_html += '</table>'
-    link_list.value = table_html
+    new_link_list.value = table_html
 
-def download_workflow(url):
-    """Tải về file JSON workflow từ URL được cung cấp"""
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Lỗi khi tải workflow: {str(e)}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"Lỗi khi giải mã JSON: {str(e)}")
-        return None
-
-def analyze_workflow(workflow):
-    required_components = {
-        'custom_nodes': set(),
-        'models': set(),
-        'checkpoints': set(),
-        'vae': set(),
-        'clip': set(),
-        'loras': set(),
-        'controlnet': set(),
-        'embeddings': set(),
-        'extensions': set()
-    }
-
-    nodes = workflow.get('nodes', [])
-
-    for node in nodes:
-        node_type = node.get('type', '')
-
-        # Phát hiện custom nodes
-        if node_type not in ['KSamplerSelect', 'VAEDecode', 'CLIPTextEncode', 'EmptyLatentImage', 'RandomNoise']:
-            required_components['custom_nodes'].add(node_type)
-
-        # Xử lý các node loader
-        if node_type == 'UNETLoader':
-            required_components['models'].add(node['widgets_values'][0])
-        elif node_type == 'VAELoader':
-            required_components['vae'].add(node['widgets_values'][0])
-        elif node_type == 'DualCLIPLoader':
-            required_components['clip'].update(node['widgets_values'][:2])
-
-        # Xử lý các input và widget values
-        for input_data in node.get('inputs', []):
-            if isinstance(input_data, dict) and 'widget' in input_data:
-                widget_name = input_data['widget'].get('name')
-                if widget_name in ['ckpt_name', 'vae_name', 'clip_name', 'lora_name']:
-                    category = widget_name.split('_')[0]
-                    value = node['widgets_values'][input_data['slot_index']]
-                    required_components[category + 's'].add(value)
-
-    return required_components
-
-def analyze_workflow_details(workflow):
-    """Tạo tóm tắt chi tiết về cách thức hoạt động của workflow dựa trên file JSON"""
-    nodes = workflow.get('nodes', [])
-    sorted_nodes = sorted(nodes, key=lambda x: x.get('id', 0))
-
-    # Phân loại nodes
-    categories = {
-        "Khởi tạo": [],
-        "Xử lý Prompt": [],
-        "Mã hóa CLIP & Điều hướng": [],
-        "Sampling (Tạo ảnh)": [],
-        "Xử lý kết quả": [],
-        "Khác": []
-    }
-
-    for node in sorted_nodes:
-        node_type = node.get('type', '')
-        if node_type in ['UNETLoader', 'VAELoader', 'CLIPLoader', 'LoraLoader', 'EmptyLatentImage', 'RandomNoise']:
-            categories["Khởi tạo"].append(node)
-        elif 'Text' in node_type or 'Prompt' in node_type:
-            categories["Xử lý Prompt"].append(node)
-        elif 'CLIP' in node_type or 'Encode' in node_type:
-            categories["Mã hóa CLIP & Điều hướng"].append(node)
-        elif 'Sampler' in node_type or 'KSampler' in node_type:
-            categories["Sampling (Tạo ảnh)"].append(node)
-        elif node_type in ['VAEDecode', 'SaveImage', 'PreviewImage']:
-            categories["Xử lý kết quả"].append(node)
+def add_new_link(b):
+    """Thêm liên kết mới vào danh sách mới"""
+    category = new_category_dropdown.value
+    link = new_link_input.value.strip()
+    if link:
+        if link in new_links[category]:
+            with new_status_output:
+                print(f"Liên kết '{link}' đã tồn tại trong danh sách mới.")
         else:
-            categories["Khác"].append(node)
+            new_links[category].append(link)
+            new_link_input.value = ''
+            update_new_link_list()
+            with new_status_output:
+                print(f"Đã thêm liên kết '{link}' vào danh sách mới {category}.")
 
-    # Tạo tóm tắt
-    summary = ["Workflow này được thiết kế để tạo ra hình ảnh bằng ComfyUI, sử dụng các mô hình và kỹ thuật xử lý prompt nâng cao."]
-
-    for category, category_nodes in categories.items():
-        if category_nodes:
-            summary.append(f"**{category}:**")
-            for node in category_nodes:
-                node_type = node.get('type', '')
-                node_inputs = node.get('inputs', [])
-                node_widgets = node.get('widgets_values', [])
-                
-                description = f"* **{node_type}:** "
-                
-                if node_type == 'UNETLoader':
-                    description += f"Tải mô hình UNET {node_widgets[0] if node_widgets else 'không xác định'}."
-                elif node_type == 'VAELoader':
-                    description += f"Tải mô hình VAE {node_widgets[0] if node_widgets else 'không xác định'}."
-                elif node_type == 'CLIPLoader' or node_type == 'CLIPTextEncode':
-                    description += f"Tải/sử dụng CLIP model {node_widgets[0] if node_widgets else 'không xác định'}."
-                elif node_type == 'EmptyLatentImage':
-                    width, height = node_widgets[:2] if len(node_widgets) >= 2 else ('không xác định', 'không xác định')
-                    description += f"Tạo ảnh latent trống kích thước {width}x{height}."
-                elif node_type == 'RandomNoise':
-                    description += f"Tạo noise ngẫu nhiên với seed {node_widgets[0] if node_widgets else 'không xác định'}."
-                elif 'KSampler' in node_type:
-                    sampler = node_widgets[0] if node_widgets else 'không xác định'
-                    steps = node_widgets[1] if len(node_widgets) > 1 else 'không xác định'
-                    description += f"Sử dụng sampler {sampler} với {steps} steps."
-                elif node_type == 'SaveImage':
-                    description += "Lưu ảnh đã tạo."
-                elif node_type == 'PreviewImage':
-                    description += "Hiển thị ảnh để preview."
+def install_new_links(b):
+    """Tải và cài đặt các liên kết mới"""
+    with new_status_output:
+        print("Đang tải và cài đặt các liên kết mới...")
+        for category, links in new_links.items():
+            for link in links:
+                if is_git_repo(link):
+                    repo_name = os.path.splitext(os.path.basename(link))[0]
+                    destination = os.path.join(COMFYUI_FOLDER, category, repo_name)
+                    clone_or_pull_repo(link, destination)
+                elif link.endswith('.json'):
+                    filename = os.path.basename(link)
+                    destination = os.path.join(WORKFLOW_FOLDER, filename)
+                    download_json(link, destination)
                 else:
-                    description += "Xử lý dữ liệu."
-                
-                summary.append(description)
+                    filename = os.path.basename(link)
+                    destination = os.path.join(COMFYUI_FOLDER, category, filename)
+                    download_file(link, destination)
+        print("Tất cả các liên kết mới đã được tải và cài đặt thành công!")
+        # Xóa danh sách liên kết mới sau khi cài đặt
+        for category in new_links:
+            new_links[category] = []
+        update_new_link_list()
 
-    summary.append("**Tóm lại:** Workflow này sử dụng các mô hình đã được tải để tạo ảnh, bao gồm các bước: khởi tạo mô hình và dữ liệu, xử lý prompt, mã hóa CLIP, sampling để tạo ảnh, và cuối cùng là xử lý kết quả (hiển thị và lưu ảnh).")
-
-    return "\n".join(summary)
-
-def get_workflow_process(workflow):
-    """Phân tích quy trình hoạt động của workflow"""
-    process = []
-    nodes = workflow.get('nodes', [])
-
-    # Sắp xếp nodes theo thứ tự thực hiện
-    sorted_nodes = sorted(nodes, key=lambda x: x.get('id', 0))
-
-    for node in sorted_nodes:
-        node_type = node.get('type', '')
-        inputs = node.get('inputs', [])
-        outputs = node.get('outputs', [])
-
-        step = f"Node: {node_type}\n"
-
-        if inputs:
-            step += "Inputs:\n"
-            for input_data in inputs:
-                input_name = input_data.get('name', 'Unknown')
-                input_type = input_data.get('type', 'Unknown')
-                step += f"  - {input_name}: {input_type}\n"
-
-        if outputs:
-            step += "Outputs:\n"
-            for output in outputs:
-                step += f"  - {output.get('name', 'Unknown')}: {output.get('type', 'Unknown')}\n"
-
-        process.append(step)
-
-    return "\n".join(process)
-
-def check_workflow(b):
-    """Kiểm tra workflow khi người dùng nhấn nút"""
-    url = workflow_input.value.strip()
-    if not url:
-        with workflow_output:
-            print("Vui lòng nhập URL của workflow.")
-        return
-
-    with workflow_output:
-        clear_output()
-        print(f"Đang tải workflow từ URL: {url}")
-        
-    workflow = download_workflow(url)
-    
-    if workflow:
-        try:
-            with workflow_output:
-                print("Đã tải workflow thành công. Đang phân tích...")
-
-            required_components = analyze_workflow(workflow)
-            workflow_details = analyze_workflow_details(workflow)
-
-            with workflow_output:
-                print("Lưu ý: Tất cả thông tin dưới đây được trích xuất trực tiếp từ file JSON workflow tải về từ URL bạn cung cấp.")
-                print("---")
-
-            with workflow_output:
-                print("\nKết quả phân tích workflow:")
-                print("\nCác thành phần cần thiết cho workflow:")
-                for category, items in required_components.items():
-                    if items:
-                        print(f"\n{category.capitalize()}:")
-                        for item in items:
-                            print(f"- {item}")
-
-                if all(len(items) == 0 for items in required_components.values()):
-                    print("\nKhông tìm thấy thành phần cụ thể nào. Workflow có thể không cần thêm thành phần hoặc sử dụng cấu trúc khác.")
-
-                print("\nTóm tắt cách thức hoạt động của workflow:")
-                print(workflow_details)
-
-                # Lưu workflow vào bộ nhớ đệm
-                filename = os.path.basename(urlparse(url).path)
-                if not filename.endswith('.json'):
-                    filename += '.json'
-                save_path = os.path.join(WORKFLOW_FOLDER, filename)
-                with open(save_path, 'w') as f:
-                    json.dump(workflow, f, indent=2)
-                print(f"\nĐã lưu workflow vào: {save_path}")
-
-                # Thêm link vào BASIC_LINKS
-                if url not in BASIC_LINKS['workflow']:
-                    BASIC_LINKS['workflow'].append(url)
-                    print(f"\nĐã thêm link workflow vào danh sách cần tải: {url}")
-                    update_link_list()
-                else:
-                    print(f"\nLink workflow đã tồn tại trong danh sách cần tải.")
-
-        except Exception as e:
-            with workflow_output:
-                print(f"Lỗi khi phân tích workflow: {str(e)}")
-                print("Cấu trúc workflow có thể không đúng như mong đợi.")
-    else:
-        with workflow_output:
-            print("Không thể tải workflow. Vui lòng kiểm tra URL và thử lại.")
 # Tạo các widget
 category_dropdown = widgets.Dropdown(options=list(BASIC_LINKS.keys()), description='Danh mục:')
 link_input = widgets.Text(description='Liên kết:')
@@ -530,24 +378,32 @@ install_all_button = widgets.Button(description='Cài đặt Tất cả')
 link_list = widgets.HTML()
 status_output = widgets.Output()
 
-# Tạo các widget mới cho chức năng kiểm tra workflow
-workflow_input = widgets.Text(description='URL Workflow:', style={'description_width': 'initial'})
-check_workflow_button = widgets.Button(description='Kiểm tra Workflow')
-workflow_output = widgets.Output()
+# Tạo các widget mới cho chức năng tải thêm
+new_category_dropdown = widgets.Dropdown(options=list(BASIC_LINKS.keys()), description='Danh mục mới:')
+new_link_input = widgets.Text(description='Liên kết mới:')
+add_new_button = widgets.Button(description='Tải thêm')
+install_new_button = widgets.Button(description='Tải thêm & Cài đặt')
+new_link_list = widgets.HTML()
+new_status_output = widgets.Output()
 
 # Thiết lập xử lý sự kiện
 add_button.on_click(add_link)
 install_all_button.on_click(install_all)
-check_workflow_button.on_click(check_workflow)
+add_new_button.on_click(add_new_link)
+install_new_button.on_click(install_new_links)
 
 # Tạo layout
 app = widgets.VBox([
-    widgets.HBox([workflow_input, check_workflow_button]),
-    workflow_output,
     widgets.HBox([category_dropdown, link_input, add_button]),
     link_list,
     install_all_button,
-    status_output
+    status_output,
+    widgets.HTML("<hr>"),  # Đường phân cách
+    widgets.HTML("<h3>Tải thêm thành phần mới</h3>"),
+    widgets.HBox([new_category_dropdown, new_link_input, add_new_button]),
+    new_link_list,
+    install_new_button,
+    new_status_output
 ])
 
 # JavaScript để xử lý nút Xóa
@@ -568,3 +424,4 @@ display(app)
 
 # Cập nhật danh sách liên kết ban đầu
 update_link_list()
+update_new_link_list()
