@@ -30,11 +30,8 @@ WORKFLOW_FOLDER = "/content/drive/MyDrive/ComfyUI/user/default/workflows"
 BASIC_LINKS = {
     'models': [],
     'extensions': [],
-    'custom_nodes': [
-        'https://github.com/florestefano1975/comfyui-portrait-master',
-        'https://github.com/giriss/comfy-image-saver',
+    'custom_nodes': [        
         'https://github.com/XLabs-AI/x-flux-comfyui',
-        'https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes',
         'https://github.com/ltdrdata/ComfyUI-Manager',
     ],
     'loras': [],
