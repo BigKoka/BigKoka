@@ -29,7 +29,9 @@ WORKFLOW_FOLDER = "/content/drive/MyDrive/ComfyUI/user/default/workflows"
 # Định nghĩa các liên kết cơ bản
 BASIC_LINKS = {
     'models': [],
-    'extensions': [],
+    'extensions': [
+        'https://github.com/facebookresearch/xformers',
+    ],
     'custom_nodes': [
         'https://github.com/ltdrdata/ComfyUI-Manager',
     ],
@@ -86,8 +88,9 @@ def clone_or_pull_repo(url, destination):
         return False
 
 def download_file(url, destination):
-    """Tải xuống file từ URL"""
+    """Tải xuống file từ URL với thông báo chi tiết"""
     try:
+        start_time = time.time()
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
@@ -99,6 +102,7 @@ def download_file(url, destination):
 
         total_size = int(response.headers.get('content-length', 0))
         block_size = 8192
+        downloaded_size = 0
 
         with open(destination, 'wb') as file, tqdm(
             desc=os.path.basename(destination),
@@ -106,13 +110,20 @@ def download_file(url, destination):
             unit='iB',
             unit_scale=True,
             unit_divisor=1024,
-            disable=True,
         ) as progress_bar:
             for data in response.iter_content(block_size):
                 size = file.write(data)
+                downloaded_size += size
                 progress_bar.update(size)
 
+        end_time = time.time()
+        download_time = end_time - start_time
+
         print(f"Đã tải xuống {url} vào {destination}")
+        print(f"Dung lượng file: {total_size / (1024 * 1024):.2f} MB")
+        print(f"Thời gian tải: {download_time:.2f} giây")
+        print(f"Tốc độ tải trung bình: {(total_size / (1024 * 1024) / download_time):.2f} MB/s")
+
         return True
     except requests.exceptions.RequestException as e:
         print(f"Lỗi khi tải xuống {url}: {str(e)}")
